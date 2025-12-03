@@ -133,7 +133,7 @@ app.post("/menu", authenticateToken, async (req, res) => {
     if (!details || !pricing || !stock) {
       return res.status(400).json({ error: "Data tidak lengkap" });
     }
-    const result = await db.query("INSERT INTO resto (details, pricing, stock) VALUES ($1, $2, $3) RETURNING *", [details, pricing, stock]);
+    const result = await db.query("INSERT INTO resto_jsonb (details, pricing, stock) VALUES ($1, $2, $3) RETURNING *", [details, pricing, stock]);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
