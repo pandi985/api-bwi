@@ -141,6 +141,7 @@ app.post("/menu", authenticateToken, async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 // route put/id
 app.put("/menu/:id", [authenticateToken, authorizeRole("admin")], async (req, res) => {
   try {
@@ -189,11 +190,19 @@ app.delete("/menu/:id", [authenticateToken, authorizeRole("admin")], async (req,
 });
 
 // fallback dan error handling
+=======
+// === ERROR HANDLER (Opsional, pastikan ini ada di akhir) ===
+app.get("/", (req, res) => {
+  res.send("API Warung Klontong berjalan. Akses /produk untuk data produk.");
+});
+
+>>>>>>> 127100f815e5edfac574127906903e80977ee011
 app.use((req, res) => {
   res.status(404).json({ error: "Rute tidak ditemukan" });
 });
 
 app.use((err, req, res, next) => {
+<<<<<<< HEAD
   console.error(err); // tampilkan error asli
   res.status(500).json({
     error: err.message,
@@ -202,4 +211,13 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server berjalan di http://localhost:${PORT}`);
+=======
+  console.error("[SERVER ERROR]", err.stack);
+  res.status(500).json({ error: "Terjadi kesalahan pada server" });
+});
+
+// Menjalankan server
+app.listen(PORT, () => {
+  console.log(`API Warung Klontong berjalan di http://localhost:${PORT}`);
+>>>>>>> 127100f815e5edfac574127906903e80977ee011
 });
