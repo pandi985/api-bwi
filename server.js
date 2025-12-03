@@ -86,7 +86,7 @@ app.post("/auth/login", async (req, res, next) => {
 // route get
 app.get("/menu", async (req, res) => {
   try {
-    const result = await db.query("SELECT * FROM resto ORDER BY id ASC");
+    const result = await db.query("SELECT * FROM resto_jsonb ORDER BY id ASC");
     const formattedData = result.rows.map((item) => ({
       id: item.id,
       details: item.details,
