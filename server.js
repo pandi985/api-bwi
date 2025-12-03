@@ -113,8 +113,8 @@ app.get("/menu/:id", async (req, res) => {
       id: item.id,
       details: item.details,
       pricing: {
-        base_price: item.pricing.base_price,
-        tax: item.pricing.tax,
+        base_price: item.pricing?.base_price,
+        tax: item.pricing?.tax,
       },
       stock: item.stock,
     }));
