@@ -197,12 +197,15 @@ app.delete("/resto/:id", [authenticateToken, authorizeRole("admin")], async (req
 });
 
 // === ERROR HANDLER (Opsional, pastikan ini ada di akhir) ===
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: "Terjadi kesalahan pada server." });
+app.use((req, res, next) => {
+  res.status(404).json({ error: "Rute tidak ditemukan" });
 });
 
+app.use((err, req, res, next) => {
+  console.error("[SERVER ERROR]", err.stack);
+  res.status(500).json({ error: "Terjadi kesalahan pada server" });
+});
 // === START SERVER ===
-app.listen(PORT, () => {
-  console.log(`Server berjalan di port ${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server aktif di http://localhost:${PORT}`);
 });
