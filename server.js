@@ -1,44 +1,27 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const db = require("./db.js"); // Menggunakan modul pg baru
+const db = require("./db.js");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { authenticateToken, authorizeRole } = require("./middleware/authMiddleware.js");
+const { authenticateToken, authorizeRole } = require("./middleware/auth.js");
 
 const app = express();
 const PORT = process.env.PORT || 3300;
 const JWT_SECRET = process.env.JWT_SECRET;
-// === MIDDLEWARE ===
+
 app.use(cors());
 app.use(express.json());
-// === DATA MAPPER FUNCTION ===
-// Fungsi ini mengubah hasil datar dari SQL menjadi format Nested Object yang diminta
-const mapProductToNestedFormat = (product) => {
-  return {
-    id: product.id,
-    details: {
-      name: product.name,
-      category: product.category,
-    },
-    pricing: {
-      base_price: product.base_price,
-      tax: product.tax,
-    },
-    stock: product.stock,
-  };
-};
-// =============================
 
-// === ROUTES ===
+// routes
 app.get("/status", (req, res) => {
   res.json({ ok: true, service: "resto-api" });
 });
 
-// === AUTH ROUTES (Tidak diubah, hanya memastikan integritas) ===
+// auth routes
 app.post("/auth/register", async (req, res, next) => {
-  // ... (Logika Register tidak diubah) ...
   const { username, password } = req.body;
+
   if (!username || !password || password.length < 6) {
     return res.status(400).json({ error: "Username dan password (min 6 char) harus diisi" });
   }
@@ -50,6 +33,7 @@ app.post("/auth/register", async (req, res, next) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === "23505") {
+      // kode error unik postgresql
       return res.status(409).json({ error: "Username sudah digunakan" });
     }
     next(err);
@@ -57,7 +41,6 @@ app.post("/auth/register", async (req, res, next) => {
 });
 
 app.post("/auth/register-admin", async (req, res, next) => {
-  // ... (Logika Register Admin tidak diubah) ...
   const { username, password } = req.body;
   if (!username || !password || password.length < 6) {
     return res.status(400).json({ error: "Username dan password (min 6 char) harus diisi" });
@@ -70,6 +53,7 @@ app.post("/auth/register-admin", async (req, res, next) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === "23505") {
+      // kode error unik postgresql
       return res.status(409).json({ error: "Username sudah digunakan" });
     }
     next(err);
@@ -77,10 +61,9 @@ app.post("/auth/register-admin", async (req, res, next) => {
 });
 
 app.post("/auth/login", async (req, res, next) => {
-  // ... (Logika Login tidak diubah) ...
   const { username, password } = req.body;
   try {
-    const sql = "SELECT * FROM users WHERE username = $1";
+    const sql = "SELECT * FROM users WHERE username= $1";
     const result = await db.query(sql, [username.toLowerCase()]);
     const user = result.rows[0];
     if (!user) {
@@ -100,109 +83,123 @@ app.post("/auth/login", async (req, res, next) => {
   }
 });
 
-// ------------------------------------------------------------------
-// === RESTO/PRODUCT ROUTES (Diubah untuk format Nested Object) ===
-// ------------------------------------------------------------------
-
-// GET All Products
-app.get("/resto", async (req, res, next) => {
-  // Mengasumsikan tabel 'products' dengan kolom yang relevan
-  const sql = `
-    SELECT id, name, category, base_price, tax, stock
-    FROM products
-    ORDER BY id ASC
-  `;
+// route get
+app.get("/menu", async (req, res) => {
   try {
-    const result = await db.query(sql); // Menggunakan mapper untuk setiap baris hasil query
-    const nestedProducts = result.rows.map(mapProductToNestedFormat);
-    res.json(nestedProducts); // Mengirim array Nested Object
+    const result = await db.query("SELECT * FROM resto ORDER BY id ASC");
+    const formattedData = result.rows.map((item) => ({
+      id: item.id,
+      details: item.details,
+      pricing: {
+        base_price: item.pricing.base_price,
+        tax: item.pricing.tax,
+      },
+      stock: item.stock,
+    }));
+
+    res.json(formattedData);
   } catch (err) {
-    next(err);
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// GET Product by ID
-app.get("/resto/:id", async (req, res, next) => {
-  const sql = `
-    SELECT id, name, category, base_price, tax, stock
-    FROM products
-    WHERE id = $1
-  `;
+// route get/id
+app.get("/menu/:id", async (req, res) => {
   try {
-    const result = await db.query(sql, [req.params.id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Produk tidak ditemukan" });
-    } // Menggunakan mapper untuk satu baris hasil query
-    const nestedProduct = mapProductToNestedFormat(result.rows[0]);
-    res.json(nestedProduct); // Mengirim satu Nested Object
+    const id = req.params.id;
+    const result = await db.query("SELECT * FROM resto WHERE id = $1", [id]);
+    const formattedData = result.rows.map((item) => ({
+      id: item.id,
+      details: item.details,
+      pricing: {
+        base_price: item.pricing.base_price,
+        tax: item.pricing.tax,
+      },
+      stock: item.stock,
+    }));
+
+    res.json(formattedData);
   } catch (err) {
-    next(err);
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// POST Product
-app.post("/resto", authenticateToken, async (req, res, next) => {
-  const { name, category, base_price, tax, stock } = req.body;
-  if (!name || !category || !base_price || !tax || !stock) {
-    return res.status(400).json({ error: "name, category, base_price, tax, stock wajib diisi" });
-  }
-
-  const sql = `
-    INSERT INTO products (name, category, base_price, tax, stock) 
-    VALUES ($1, $2, $3, $4, $5) 
-    RETURNING id, name, category, base_price, tax, stock
-  `;
+// route post
+app.post("/menu", authenticateToken, async (req, res) => {
   try {
-    const result = await db.query(sql, [name, category, base_price, tax, stock]); // Menggunakan mapper sebelum mengirim response 201 Created
-    const nestedProduct = mapProductToNestedFormat(result.rows[0]);
-    res.status(201).json(nestedProduct);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// PUT Product
-app.put("/resto/:id", [authenticateToken, authorizeRole("admin")], async (req, res, next) => {
-  const { name, category, base_price, tax, stock } = req.body;
-  const sql = `
-    UPDATE products SET 
-      name = $1, category = $2, base_price = $3, tax = $4, stock = $5
-    WHERE id = $6 
-    RETURNING id, name, category, base_price, tax, stock
-  `;
-  try {
-    const result = await db.query(sql, [name, category, base_price, tax, stock, req.params.id]);
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Produk tidak ditemukan" });
-    } // Menggunakan mapper
-    const nestedProduct = mapProductToNestedFormat(result.rows[0]);
-    res.json(nestedProduct);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// DELETE Product
-app.delete("/resto/:id", [authenticateToken, authorizeRole("admin")], async (req, res, next) => {
-  const sql = "DELETE FROM products WHERE id = $1 RETURNING *";
-  try {
-    const result = await db.query(sql, [req.params.id]);
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Produk tidak ditemukan" });
+    const { details, pricing, stock } = req.body;
+    if (!details || !pricing || !stock) {
+      return res.status(400).json({ error: "Data tidak lengkap" });
     }
-    res.status(204).send();
+    const result = await db.query("INSERT INTO resto (details, pricing, stock) VALUES ($1, $2, $3) RETURNING *", [details, pricing, stock]);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
-    next(err);
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// === ERROR HANDLER (Opsional, pastikan ini ada di akhir) ===
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: "Terjadi kesalahan pada server." });
+// route put/id
+app.put("/menu/:id", [authenticateToken, authorizeRole("admin")], async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { details, pricing, stock } = req.body;
+
+    if (!details || !pricing || !stock) {
+      return res.status(400).json({ error: "details, pricing, dan stock wajib diisi" });
+    }
+
+    const check = await db.query("SELECT * FROM resto WHERE id = $1", [id]);
+
+    if (check.rowCount === 0) {
+      return res.status(404).json({ error: "Item tidak ditemukan" });
+    }
+
+    const result = await db.query("UPDATE resto SET details = $1, pricing = $2, stock = $3 WHERE id = $4 RETURNING *", [details, pricing, stock, id]);
+
+    res.json({
+      message: "Item berhasil diupdate",
+      Item: result.rows[0],
+    });
+  } catch (err) {
+    console.error("Error:", err);
+    res.status(500).json({ error: "Gagal mengupdate item" });
+  }
 });
 
-// === START SERVER ===
-app.listen(PORT, () => {
-  console.log(`Server berjalan di port ${PORT}`);
+// route delete/id
+app.delete("/menu/:id", [authenticateToken, authorizeRole("admin")], async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await db.query("DELETE FROM resto WHERE id = $1 RETURNING *", [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Item tidak ditemukan" });
+    }
+    res.json({
+      message: "Item berhasil dihapus",
+      id: result.rows[0].id,
+      details: result.rows[0].details,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// fallback dan error handling
+app.use((req, res) => {
+  res.status(404).json({ error: "Rute tidak ditemukan" });
+});
+
+app.use((err, req, res, next) => {
+  console.error(err); // tampilkan error asli
+  res.status(500).json({
+    error: err.message,
+  });
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server berjalan di http://localhost:${PORT}`);
 });
