@@ -151,13 +151,13 @@ app.put("/menu/:id", [authenticateToken, authorizeRole("admin")], async (req, re
       return res.status(400).json({ error: "details, pricing, dan stock wajib diisi" });
     }
 
-    const check = await db.query("SELECT * FROM resto WHERE id = $1", [id]);
+    const check = await db.query("SELECT * FROM resto_jsonb WHERE id = $1", [id]);
 
     if (check.rowCount === 0) {
       return res.status(404).json({ error: "Item tidak ditemukan" });
     }
 
-    const result = await db.query("UPDATE resto SET details = $1, pricing = $2, stock = $3 WHERE id = $4 RETURNING *", [details, pricing, stock, id]);
+    const result = await db.query("UPDATE resto_jsonb SET details = $1, pricing = $2, stock = $3 WHERE id = $4 RETURNING *", [details, pricing, stock, id]);
 
     res.json({
       message: "Item berhasil diupdate",
@@ -173,7 +173,7 @@ app.put("/menu/:id", [authenticateToken, authorizeRole("admin")], async (req, re
 app.delete("/menu/:id", [authenticateToken, authorizeRole("admin")], async (req, res) => {
   try {
     const id = req.params.id;
-    const result = await db.query("DELETE FROM resto WHERE id = $1 RETURNING *", [id]);
+    const result = await db.query("DELETE FROM resto_jsonb WHERE id = $1 RETURNING *", [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Item tidak ditemukan" });
     }
